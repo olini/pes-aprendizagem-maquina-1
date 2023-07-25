@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "pes-aprendizagem-maquina-1"
+version = "0.1.0"
+description = ""
+authors = ["Lucas Olini <lucasolini96@gmail.com>"]
+readme = "README.md"
+packages = [{include = "pes_aprendizagem_maquina_1"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+pandas = "^2.0.3"
+scipy = "^1.11.1"
+sklearn = "^0.0.post7"
+scikit-learn = "^1.3.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
