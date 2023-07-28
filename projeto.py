@@ -260,6 +260,8 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
         # binariza a coluna target para uso no plot roc e metrica roc_auc_score
         label_binarizer = LabelBinarizer().fit(y_train)
         y_onehot_test = label_binarizer.transform(y_test)
+        # prepara o y_train
+        y_train = y_train.values.ravel()
         # inicializa e roda o grid search
         grid_search_cv = GridSearchCV(
             estimator=model, param_grid=params, scoring="f1_weighted", cv=n_splits_grid_search, 
