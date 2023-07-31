@@ -1,7 +1,10 @@
-# %% [markdown]
-# # Imports
+# scikit-learn == 1.3.0
+# matplotlib == 3.7.2
+# numpy == 1.24.4
+# pandas == 2.0.3
 
-# %%
+import os
+import time
 import json
 import numpy as np
 import pandas as pd
@@ -9,23 +12,37 @@ import matplotlib.pyplot as plt
 
 from scipy.io.arff import loadarff
 from sklearn import metrics
+from sklearn.preprocessing import LabelBinarizer, StandardScaler
+from sklearn.model_selection import StratifiedKFold, GridSearchCV
+
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import LabelBinarizer, StandardScaler
-from sklearn.model_selection import StratifiedKFold, GridSearchCV
+from sklearn.linear_model import Perceptron
+from sklearn.neural_network import MLPClassifier
 
-# %%
+
 pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)
 
-# %% [markdown]
-# # Helper functions
 
-# %%
+
+
+# função para criar os diretórios
+def creat_dir(model_name):
+    if not 'log_metrics' in os.listdir():
+        os.mkdir('log_metrics')
+    if not 'imgs' in os.listdir():
+        os.mkdir('imgs')
+    if not model_name in os.listdir('./imgs'):
+        os.mkdir('./imgs/'+model_name)
+
+
+
+
 # função para adicionar as métricas de um fold em um dicionário
 def dic_par_metrics(y_test, y_onehot_test, y_pred, y_proba, grid_search_cv):
     accuracy = metrics.accuracy_score(y_test, y_pred)
@@ -69,20 +86,33 @@ def dic_par_metrics(y_test, y_onehot_test, y_pred, y_proba, grid_search_cv):
     }
     return dicMetricas
 
-# %%
-# função para calcular a média das métricas de todos os folds
-def calc_mean(dic_json):
+
+
+
+# função para calcular a média e o desvio padrão das métricas de cada fold, além de plotar os boxplots
+def calc_mean_std(dic_json, model_name):
     key = list(dic_json.keys())[0]
     dic_mean = {}
+    dic_std = {}
     for j in dic_json[key]['metrics'].keys():
-        sum_metric = 0
+        metrics_list = []
         for i in dic_json.keys():
-            sum_metric+=dic_json[i]['metrics'][j]
-        mean = sum_metric/len(dic_json.keys())
+            metrics_list.append(dic_json[i]['metrics'][j])
+        mean = np.mean(metrics_list)
+        std = np.std(metrics_list)
         dic_mean.update({j: mean})
-    return dic_mean
+        dic_std.update({j: std})
+        plt.close()
+        plt.boxplot(metrics_list, labels=[model_name])
+        plt.ylabel(j)
+        plt.savefig('./imgs/'+model_name+'/boxplot_'+j+'.png')
+    dic_json.update({"mean": dic_mean})
+    dic_json.update({"std": dic_std})
+    return dic_json
 
-# %%
+
+
+
 def plot_matriz_confusao_one_vs_one(y_test, y_pred, model_name, fold_i, flag_normalizado="true"):
     """Plota a matriz de confusao comparando cada classe entre si, mostrando as predicoes contra as
     classes verdadeiras.
@@ -109,7 +139,9 @@ def plot_matriz_confusao_one_vs_one(y_test, y_pred, model_name, fold_i, flag_nor
     
     return cm_plot
 
-# %%
+
+
+
 def inicializa_roc_one_class_vs_rest_kfold(y_onehot_test, y_pred_score, i, class_id, ax, tprs, aucs, mean_fpr):
     viz = metrics.RocCurveDisplay.from_predictions(
         y_onehot_test[:, class_id],
@@ -126,7 +158,9 @@ def inicializa_roc_one_class_vs_rest_kfold(y_onehot_test, y_pred_score, i, class
     tprs.append(interp_tpr)
     aucs.append(viz.roc_auc)
 
-# %%
+
+
+
 def gera_roc_one_class_vs_rest_kfold(tprs, aucs, mean_fpr, plot, model_name, class_id):
     fig = plot[0]
     ax = plot[1]
@@ -167,7 +201,9 @@ def gera_roc_one_class_vs_rest_kfold(tprs, aucs, mean_fpr, plot, model_name, cla
     fig.savefig(f"imgs/{model_name}/roc_{model_name}_class_{class_id+1}.png", dpi=300)
     plt.close()
 
-# %%
+
+
+
 def inicializa_roc_micro_average_kfold(y_onehot_test, y_pred_score, i, ax, tprs, aucs, mean_fpr):
     viz = metrics.RocCurveDisplay.from_predictions(
         y_onehot_test.ravel(),
@@ -184,7 +220,9 @@ def inicializa_roc_micro_average_kfold(y_onehot_test, y_pred_score, i, ax, tprs,
     tprs.append(interp_tpr)
     aucs.append(viz.roc_auc)
 
-# %%
+
+
+
 def gera_roc_micro_average_kfold(tprs, aucs, mean_fpr, fig, ax, model_name):
     mean_tpr = np.mean(tprs, axis=0)
     mean_tpr[-1] = 1.0
@@ -222,7 +260,9 @@ def gera_roc_micro_average_kfold(tprs, aucs, mean_fpr, fig, ax, model_name):
     fig.savefig(f"imgs/{model_name}/roc_micro_average_{model_name}.png", dpi=300)
     plt.close()
 
-# %%
+
+
+
 def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
     """Realiza o treino e validacao do modelo utilizando StratifiedKFold com GridSearchCV para
     busca dos melhores hiperparametros (tendo assim um nested cross-validation).
@@ -234,6 +274,12 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
         X: features do modelo
         y: coluna de target do modelo
     """
+    
+    startTime = time.time()
+
+    # criando os diretórios necessários para salvar as métricas e os plots
+    creat_dir(model_name)
+    
     print(f"Modelo: {model_name}")
     dic_json = {}
 
@@ -267,14 +313,15 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
         # prepara o y_train
         y_train = y_train.values.ravel()
         # inicializa e roda o grid search
-        grid_search_cv = GridSearchCV(
-            estimator=model, param_grid=params, scoring="f1_weighted", cv=n_splits_grid_search, 
-            verbose=3)
+        grid_search_cv = GridSearchCV(estimator=model,param_grid=params,scoring="f1_weighted",cv=n_splits_grid_search,verbose=3)
         grid_search_cv.fit(X_train, y_train)
         # com os melhores parametros encontrados, realiza a predicao no fold de teste e calcula a 
         # metrica de avaliacao
         y_pred = grid_search_cv.predict(X_test)
-        y_proba = grid_search_cv.predict_proba(X_test)
+        if model_name != 'Perceptron':
+            y_proba = grid_search_cv.predict_proba(X_test)
+        else:
+            y_proba = grid_search_cv.decision_function(X_test)
         # armazenando as metricas e os parametros em um dicionario
         dic_fold = dic_par_metrics(y_test, y_onehot_test, y_pred, y_proba, grid_search_cv)
         dic_json.update({"fold "+str(i): dic_fold})
@@ -292,9 +339,12 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
             aucs_micro_average, mean_fpr
         )
         print(f"## FINAL FOLD {i} ##\n", dic_fold)
-
+    
+    endTime = time.time()
     # inserindo a média dos folds no dicionário
-    dic_json.update({"mean": calc_mean(dic_json)})
+    dic_json = calc_mean_std(dic_json, model_name)
+    # inserindo o tempo de execução
+    dic_json.update({"time": endTime-startTime})
     # salvando o dicionário no formato json
     objOpen = open(f'./log_metrics/{model_name}.json', 'w')
     objOpen.write(json.dumps(dic_json, indent=4))
@@ -309,169 +359,174 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
         model_name
     )
 
-# %% [markdown]
-# # Carrega dados
 
-# %%
+
+
+# importando o dataset
 raw_data = loadarff('data/dataset.arff')
 df_data = pd.DataFrame(raw_data[0])
-df_data.head()
 
-# %%
-# decodifica string de target
+# o alterando a coluna target (bytes para string)
 df_data["target"] = df_data["target"].str.decode("utf-8")
 
-# %%
-df_data.sample(5)
 
-# %%
-# verifica dimensoes do banco de dados
-df_data.shape
 
-# %%
-# verifica se possuem colunas com dados nulos
-df_data.isnull().sum()
+# verificando o número de linhas e colunas do dataset
+print("\nShape dataset:", df_data.shape)
 
-# %%
-# verifica distribuicao das classes nas instancias do banco de dados
-df_data["target"].value_counts()
+# verificando o menor valor das colunas de características
+print("\nValor mínimo das features:", df_data.iloc[:,1:-1].min().min())
 
-# %%
-df_data.describe()
+# verificando o maior valor das colunas de características
+print("\nValor máximo das features:", df_data.iloc[:,1:-1].max().max())
 
-# %% [markdown]
-# # Modelos
+# verificando o número de instâncias para cada classe
+print('\nNúmero de Instâncias por Classe:\n', df_data.groupby('target').count()['id'])
 
-# %% [markdown]
-# -> knn, decision tree, random forest, naive bayes
-# 
-# -> regressao logistica, perceptron, mlp
-# svm
+# verificando o percentual de instâncias para cada classe
+print('\nPercentual de Instâncias por Classe:\n', (df_data.groupby('target').count()['id']/df_data.shape[0])*100)
 
-# %%
+# verificando se existem valores NaN
+print('\nNúmero de Valores NaN:', df_data.isnull().sum().sum())
+
+
+
+# separando as entradas e saídas desejadas
 X = df_data.drop(columns=["id", "target"])
 y = df_data[["target"]]
 
-# %% [markdown]
-# ## KNN
 
-# %%
-# define os parametros e seus respectivos valores a serem testados no grid search
-params = {
-    "n_neighbors": [5, 10, 15]
-}
-# define o modelo
-model = KNeighborsClassifier(n_jobs=1)
-# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
-# parametros com grid search cv, fazendo assim um nested cross-validation
-stratified_k_fold_grid_search_cv(model, params, X, y, "KNN")
-
-# %% [markdown]
-# ## DecisionTree
-
-# %%
-# define os parametros e seus respectivos valores a serem testados no grid search
-params = {
-    "criterion": ["gini", "entropy", "log_loss"],
-    "class_weight": ["balanced", None],
-    "max_depth": [None, 50, 100, 200, 500, 1000]
-}
-# define o modelo
-model = DecisionTreeClassifier(random_state=4)
-# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
-# parametros com grid search cv, fazendo assim um nested cross-validation
-stratified_k_fold_grid_search_cv(model, params, X, y, "DecisionTree")
-
-# %% [markdown]
-# ## Random Forest
-
-# %%
-# define os parametros e seus respectivos valores a serem testados no grid search
-params = {
-    "n_estimators": [100, 300, 500],
-    "max_depth": [None, 400, 800],
-    "class_weight": ["balanced_subsample", None]
-}
-
-# define o modelo
-model = RandomForestClassifier(random_state=4)
-# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
-# parametros com grid search cv, fazendo assim um nested cross-validation
-stratified_k_fold_grid_search_cv(model, params, X, y, "RandomForest")
-
-# %% [markdown]
-# ## Naive Bayes (Gaussian)
-
-# %%
-# define os parametros e seus respectivos valores a serem testados no grid search
-params = {
-}
-
-# define o modelo
-model = GaussianNB()
-# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
-# parametros com grid search cv, fazendo assim um nested cross-validation
-stratified_k_fold_grid_search_cv(model, params, X, y, "NaiveBayes")
-
-# %% [markdown]
-# ## SVM
-
-# %%
-# define os parametros e seus respectivos valores a serem testados no grid search
-params = {
-    "C": [1],
-    "kernel": ["rbf"]
-}
-
-# define o modelo
-model = SVC(random_state=4, probability=True)
-# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
-# parametros com grid search cv, fazendo assim um nested cross-validation
-stratified_k_fold_grid_search_cv(model, params, X, y, "SVM")
-
-# %% [markdown]
-# # Extra
-
-# %%
-# PLOT NAO UTILIZADO NO PROJETO, REFERENCIA PARA USO FUTURO
-# # store the fpr, tpr, and roc_auc for all averaging strategies
-# fpr, tpr, roc_auc = dict(), dict(), dict()
-# # Compute micro-average ROC curve and ROC area
-# fpr["micro"], tpr["micro"], _ = roc_curve(y_onehot_test.ravel(), y_pred_score.ravel())
-# roc_auc["micro"] = auc(fpr["micro"], tpr["micro"])
-
-# list_colors = [
-#     "tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple", "tab:brown", "tab:gray", 
-#     "tab:olive", "tab:cyan"
-# ]
-
-# fig, ax = plt.subplots(figsize=(6, 6))
-
-# plt.plot(
-#     fpr["micro"],
-#     tpr["micro"],
-#     label=f"micro-average OvR (AUC = {roc_auc['micro']:.2f})",
-#     color="deeppink",
-#     linestyle=":",
-#     linewidth=4,
-# )
-
-# #colors = cycle(["aqua", "darkorange", "cornflowerblue"])
-# for class_id, color in zip(range(9), list_colors):
-#     RocCurveDisplay.from_predictions(
-#         y_onehot_test[:, class_id],
-#         y_pred_score[:, class_id],
-#         name=f"Class_{class_id+1}",
-#         color=color,
-#         ax=ax,
-#         plot_chance_level=(class_id==8)
-#     )
-
-# plt.axis("square")
-# plt.xlabel("False Positive Rate")
-# plt.ylabel("True Positive Rate")
-# plt.title("Curvas ROC One-vs-Rest")
-# plt.legend()
-# plt.show()
+# o usuário irá inserir o nº referente ao modelo que deseja treinar
+moedel_select = input("""
+Insira o número referente ao modelo que deseja treinar:
+1 - kNN
+2 - Decision Tree
+3 - Random Forest
+4 - Naive Bayes 
+5 - Logistic Regression 
+6 - Perceptron
+7 - MLP
+8 - SVM
+""")
 
 
+
+## KNN
+if moedel_select[0] == '1':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "n_neighbors": [5, 10, 15]
+    }
+    # define o modelo
+    model = KNeighborsClassifier(n_jobs=1)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "KNN")
+
+
+
+## DECISION TREE
+if moedel_select[0] == '2':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "criterion": ["gini", "entropy", "log_loss"],
+        "class_weight": ["balanced", None],
+        "max_depth": [None, 50, 100, 200, 500, 1000]
+    }
+    # define o modelo
+    model = DecisionTreeClassifier(random_state=4)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "DecisionTree")
+
+
+
+## RANDOM FOREST
+if moedel_select[0] == '3':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "n_estimators": [100, 300, 500],
+        "max_depth": [None, 400, 800],
+        "class_weight": ["balanced_subsample", None]
+    }
+    # define o modelo
+    model = RandomForestClassifier(random_state=4)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "RandomForest")
+
+
+
+## NAIVE BAYES (GAUSSIAN)
+if moedel_select[0] == '4':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+    }
+    # define o modelo
+    model = GaussianNB()
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "NaiveBayes")
+
+
+
+## LOGISTIC REGRSSION
+if moedel_select[0] == '5':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "penalty": [None, "l2"],
+        "class_weight": ["balanced", None],
+        "max_iter": [100, 300, 500, 700, 1000]
+    }
+    # define o modelo
+    model = LogisticRegression(random_state=4)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "LogisticRegression")
+
+
+
+## PERCEPTRON
+if moedel_select[0] == '6':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "penalty": [None, "l2"],
+        "class_weight": ["balanced", None],
+        "max_iter": [100, 300, 500, 700, 1000]
+    }
+    # define o modelo
+    model = Perceptron(random_state=4)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "Perceptron")
+
+
+
+## MLP
+if moedel_select[0] == '7':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "learning_rate_init": [0.001, 0.01],
+        "max_iter": [200, 500, 700],
+        "hidden_layer_sizes": [20, 50, 100]
+    }
+    # define o modelo
+    model = MLPClassifier(random_state=4)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "MLPClassifier")
+
+
+
+## SVM
+if moedel_select[0] == '8':
+    # define os parametros e seus respectivos valores a serem testados no grid search
+    params = {
+        "C": [1],
+        "kernel": ["rbf"]
+    }
+    # define o modelo
+    model = SVC(random_state=4, probability=True)
+    # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+    # parametros com grid search cv, fazendo assim um nested cross-validation
+    stratified_k_fold_grid_search_cv(model, params, X, y, "SVM")
