@@ -9,7 +9,11 @@ import matplotlib.pyplot as plt
 
 from scipy.io.arff import loadarff
 from sklearn import metrics
+from sklearn.svm import SVC
+from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelBinarizer, StandardScaler
 from sklearn.model_selection import StratifiedKFold, GridSearchCV
@@ -348,11 +352,29 @@ df_data.describe()
 X = df_data.drop(columns=["id", "target"])
 y = df_data[["target"]]
 
+# %% [markdown]
+# ## KNN
+
+# %%
+# define os parametros e seus respectivos valores a serem testados no grid search
+params = {
+    "n_neighbors": [5, 10, 15]
+}
+# define o modelo
+model = KNeighborsClassifier(n_jobs=1)
+# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+# parametros com grid search cv, fazendo assim um nested cross-validation
+stratified_k_fold_grid_search_cv(model, params, X, y, "KNN")
+
+# %% [markdown]
+# ## DecisionTree
+
 # %%
 # define os parametros e seus respectivos valores a serem testados no grid search
 params = {
     "criterion": ["gini", "entropy", "log_loss"],
-    "class_weight": ["balanced", None]
+    "class_weight": ["balanced", None],
+    "max_depth": [None, 50, 100, 200, 500, 1000]
 }
 # define o modelo
 model = DecisionTreeClassifier(random_state=4)
@@ -360,17 +382,52 @@ model = DecisionTreeClassifier(random_state=4)
 # parametros com grid search cv, fazendo assim um nested cross-validation
 stratified_k_fold_grid_search_cv(model, params, X, y, "DecisionTree")
 
+# %% [markdown]
+# ## Random Forest
+
 # %%
 # define os parametros e seus respectivos valores a serem testados no grid search
 params = {
-    "max_iter": [100, "entropy", "log_loss"],
-    "class_weight": ["balanced", None]
+    "n_estimators": [100, 300, 500],
+    "max_depth": [None, 400, 800],
+    "class_weight": ["balanced_subsample", None]
 }
+
 # define o modelo
-model = LogisticRegression(random_state=4)
+model = RandomForestClassifier(random_state=4)
 # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
 # parametros com grid search cv, fazendo assim um nested cross-validation
-stratified_k_fold_grid_search_cv(model, params, X, y, "LogisticRegression")
+stratified_k_fold_grid_search_cv(model, params, X, y, "RandomForest")
+
+# %% [markdown]
+# ## Naive Bayes (Gaussian)
+
+# %%
+# define os parametros e seus respectivos valores a serem testados no grid search
+params = {
+}
+
+# define o modelo
+model = GaussianNB()
+# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+# parametros com grid search cv, fazendo assim um nested cross-validation
+stratified_k_fold_grid_search_cv(model, params, X, y, "NaiveBayes")
+
+# %% [markdown]
+# ## SVM
+
+# %%
+# define os parametros e seus respectivos valores a serem testados no grid search
+params = {
+    "C": [1],
+    "kernel": ["rbf"]
+}
+
+# define o modelo
+model = SVC(random_state=4, probability=True)
+# chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
+# parametros com grid search cv, fazendo assim um nested cross-validation
+stratified_k_fold_grid_search_cv(model, params, X, y, "SVM")
 
 # %% [markdown]
 # # Extra
