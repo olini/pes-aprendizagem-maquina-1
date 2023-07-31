@@ -102,10 +102,11 @@ def calc_mean_std(dic_json, model_name):
         std = np.std(metrics_list)
         dic_mean.update({j: mean})
         dic_std.update({j: std})
-        plt.close()
+        plt.close('all')
         plt.boxplot(metrics_list, labels=[model_name])
         plt.ylabel(j)
         plt.savefig('./imgs/'+model_name+'/boxplot_'+j+'.png')
+        plt.close('all')
     dic_json.update({"mean": dic_mean})
     dic_json.update({"std": dic_std})
     return dic_json
