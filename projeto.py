@@ -319,6 +319,8 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
         # com os melhores parametros encontrados, realiza a predicao no fold de teste e calcula a 
         # metrica de avaliacao
         y_pred = grid_search_cv.predict(X_test)
+        # verifica se o modelo em execucao eh o perceptron, ja que o mesmo nao possui a funcao 
+        # predict_proba
         if model_name != 'Perceptron':
             y_proba = grid_search_cv.predict_proba(X_test)
         else:
@@ -524,7 +526,7 @@ if moedel_select[0] == '8':
     # define os parametros e seus respectivos valores a serem testados no grid search
     params = {
         "C": [1],
-        "kernel": ["rbf"]
+        "kernel": ["rbf", "linear"]
     }
     # define o modelo
     model = SVC(random_state=4, probability=True)
