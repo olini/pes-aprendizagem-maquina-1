@@ -23,6 +23,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Perceptron
 from sklearn.neural_network import MLPClassifier
+from imblearn.over_sampling import SMOTE
 
 
 pd.set_option("display.max_columns", None)
@@ -62,6 +63,8 @@ def dic_par_metrics(y_test, y_onehot_test, y_pred, y_proba, grid_search_cv):
     roc_auc_ovo_macro = metrics.roc_auc_score(y_onehot_test, y_proba, multi_class='ovo', average='macro')
     roc_auc_ovr_weighted = metrics.roc_auc_score(y_onehot_test, y_proba, multi_class='ovr', average='weighted')
     roc_auc_ovo_weighted = metrics.roc_auc_score(y_onehot_test, y_proba, multi_class='ovo', average='weighted')
+    classification_report = metrics.classification_report(y_test, y_pred, output_dict=True)
+
     dicMetricas = {
         "parameters": grid_search_cv.best_params_,
         "metrics":{
@@ -82,7 +85,8 @@ def dic_par_metrics(y_test, y_onehot_test, y_pred, y_proba, grid_search_cv):
             "roc_auc_ovo_macro": roc_auc_ovo_macro,
             "roc_auc_ovr_weighted": roc_auc_ovr_weighted,
             "roc_auc_ovo_weighted": roc_auc_ovo_weighted
-        }
+        },
+        "classification_report": classification_report
     }
     return dicMetricas
 
@@ -264,7 +268,7 @@ def gera_roc_micro_average_kfold(tprs, aucs, mean_fpr, fig, ax, model_name):
 
 
 
-def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
+def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name, flag_smote=False):
     """Realiza o treino e validacao do modelo utilizando StratifiedKFold com GridSearchCV para
     busca dos melhores hiperparametros (tendo assim um nested cross-validation).
 
@@ -304,6 +308,10 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name):
         X_test = X.iloc[test_index]
         y_train = y.iloc[train_index]
         y_test = y.iloc[test_index]
+        # realiza a tecnica SMOTE no dados de treino para tratamento do desbalanceamento
+        if flag_smote:
+            smote = SMOTE(random_state=4)
+            X_train, y_train = smote.fit_resample(X_train, y_train)
         # normaliza os dados
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
@@ -448,15 +456,16 @@ if moedel_select[0] == '2':
 if moedel_select[0] == '3':
     # define os parametros e seus respectivos valores a serem testados no grid search
     params = {
-        "n_estimators": [100, 300, 500],
-        "max_depth": [None, 400, 800],
+        #"n_estimators": [100, 300, 500],
+        "n_estimators": [300, 500],
+        #"max_depth": [None, 400, 800],
         "class_weight": ["balanced_subsample", None]
     }
     # define o modelo
     model = RandomForestClassifier(random_state=4)
     # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
     # parametros com grid search cv, fazendo assim um nested cross-validation
-    stratified_k_fold_grid_search_cv(model, params, X, y, "RandomForest")
+    stratified_k_fold_grid_search_cv(model, params, X, y, "RandomForest_smote", flag_smote=True)
 
 
 
