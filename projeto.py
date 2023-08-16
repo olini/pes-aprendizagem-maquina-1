@@ -24,6 +24,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import Perceptron
 from sklearn.neural_network import MLPClassifier
 from imblearn.over_sampling import SMOTE
+from sklearn.feature_selection import VarianceThreshold
 
 
 pd.set_option("display.max_columns", None)
@@ -268,7 +269,9 @@ def gera_roc_micro_average_kfold(tprs, aucs, mean_fpr, fig, ax, model_name):
 
 
 
-def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name, flag_smote=False):
+def stratified_k_fold_grid_search_cv(
+        model, params:dict, X, y, model_name, flag_smote=False, flag_variance_threshold=False
+):
     """Realiza o treino e validacao do modelo utilizando StratifiedKFold com GridSearchCV para
     busca dos melhores hiperparametros (tendo assim um nested cross-validation).
 
@@ -312,6 +315,11 @@ def stratified_k_fold_grid_search_cv(model, params:dict, X, y, model_name, flag_
         if flag_smote:
             smote = SMOTE(random_state=4)
             X_train, y_train = smote.fit_resample(X_train, y_train)
+        # realiza a tecnica de selecao de atributos utilizando Variance Threshold
+        if flag_variance_threshold:
+            filter_variance = VarianceThreshold(0.8)
+            X_train = filter_variance.fit_transform(X_train)
+            X_test = filter_variance.transform(X_test)
         # normaliza os dados
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
