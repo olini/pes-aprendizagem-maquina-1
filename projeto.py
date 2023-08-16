@@ -25,6 +25,7 @@ from sklearn.linear_model import Perceptron
 from sklearn.neural_network import MLPClassifier
 from imblearn.over_sampling import SMOTE
 from sklearn.feature_selection import VarianceThreshold
+from sklearn.decomposition import PCA
 
 
 pd.set_option("display.max_columns", None)
@@ -270,7 +271,8 @@ def gera_roc_micro_average_kfold(tprs, aucs, mean_fpr, fig, ax, model_name):
 
 
 def stratified_k_fold_grid_search_cv(
-        model, params:dict, X, y, model_name, flag_smote=False, flag_variance_threshold=False
+        model, params:dict, X, y, model_name, flag_smote=False, flag_variance_threshold=False,
+        flag_pca=False
 ):
     """Realiza o treino e validacao do modelo utilizando StratifiedKFold com GridSearchCV para
     busca dos melhores hiperparametros (tendo assim um nested cross-validation).
@@ -324,6 +326,13 @@ def stratified_k_fold_grid_search_cv(
         scaler = StandardScaler()
         X_train = scaler.fit_transform(X_train)
         X_test = scaler.transform(X_test)
+        # realiza a tecnica de extracao de caracteristicas e reducao de dimensionalidade PCA
+        if flag_pca:
+            # mantem apenas os componentes principais que contem 90% da informacao dos dados 
+            # originais
+            pca = PCA(n_components=0.9, svd_solver="full")
+            X_train = pca.fit_transform(X_train)
+            X_test = pca.transform(X_test)
         # binariza a coluna target para uso no plot roc e metrica roc_auc_score
         label_binarizer = LabelBinarizer().fit(y_train)
         y_onehot_test = label_binarizer.transform(y_test)
