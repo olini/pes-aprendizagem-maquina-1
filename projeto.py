@@ -344,12 +344,11 @@ def stratified_k_fold_grid_search_cv(
         # com os melhores parametros encontrados, realiza a predicao no fold de teste e calcula a 
         # metrica de avaliacao
         y_pred = grid_search_cv.predict(X_test)
-        # verifica se o modelo em execucao eh o perceptron, ja que o mesmo nao possui a funcao 
-        # predict_proba
-        if model_name != 'Perceptron':
-            y_proba = grid_search_cv.predict_proba(X_test)
-        else:
+        # verifica se o modelo em execucao eh o perceptron, ja que o mesmo nao possui a funcao predict_proba
+        if len(model_name.split("Perceptron")) > 1:
             y_proba = grid_search_cv.decision_function(X_test)
+        else:
+            y_proba = grid_search_cv.predict_proba(X_test)
         # armazenando as metricas e os parametros em um dicionario
         dic_fold = dic_par_metrics(y_test, y_onehot_test, y_pred, y_proba, grid_search_cv)
         dic_json.update({"fold "+str(i): dic_fold})
@@ -536,8 +535,8 @@ if moedel_select[0] == '7':
     # define os parametros e seus respectivos valores a serem testados no grid search
     params = {
         "learning_rate_init": [0.001, 0.01],
-        "max_iter": [200, 500, 700],
-        "hidden_layer_sizes": [20, 50, 100]
+        "max_iter": [200, 500],
+        "hidden_layer_sizes": [50, 100]
     }
     # define o modelo
     model = MLPClassifier(random_state=4)
@@ -559,3 +558,4 @@ if moedel_select[0] == '8':
     # chama a funcao que roda o stratified k fold e valida o modelo realizando a busca por hiper 
     # parametros com grid search cv, fazendo assim um nested cross-validation
     stratified_k_fold_grid_search_cv(model, params, X, y, "SVM")
+    
