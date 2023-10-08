@@ -9,5 +9,3 @@ Repositório com códigos do projeto da disciplina Aprendizagem de Máquina I do
 - pyproject.toml: arquivo com as dependências do projeto utilizado pelo gerenciador de dependências *poetry*
 
 **Banco de dados utilizado:** https://www.openml.org/search?type=data&status=active&id=45548&sort=runs
-
-**Vídeo de apresentação dos projetos**: https://drive.google.com/file/d/1jCx2eOMCIavpQRy0jECg9Gfhoeyniv1b/view?usp=sharing
